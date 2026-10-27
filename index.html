@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>티스토리 관계성 틀 에디터</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            neon: '#ccff00',
+            cyberDark: '#111111'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Strict font inherit rule for site-default fonts */
+    body, button, input, textarea, select, div, span, h1, h2, h3, h4, p {
+      font-family: inherit !important;
+    }
+
+    /* Clean Sharp Borders & Absolute NO Shadows */
+    .border-cyber {
+      border: 1px solid #111111;
+      box-shadow: none !important;
+    }
+
+    * {
+      box-shadow: none !important;
+    }
+
+    /* Dotted Leader Line style for profiles */
+    .dot-leader {
+      border-bottom: 2px dotted #cccccc;
+      flex-grow: 1;
+      margin: 0 8px 4px 8px;
+    }
+
+    /* Visual feedback for contenteditable fields */
+    [contenteditable="true"] {
+      outline: none;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      border-radius: 0px;
+      padding: 1px 3px;
+    }
+
+    [contenteditable="true"]:hover {
+      background-color: rgba(204, 255, 0, 0.3);
+      cursor: text;
+    }
+
+    [contenteditable="true"]:focus {
+      background-color: rgba(204, 255, 0, 0.5);
+      border-bottom: 1px solid #000;
+    }
+
+    /* Styles hidden during HTML export */
+    .hide-on-export {
+      display: flex !important;
+    }
+  </style>
+</head>
+<body class="bg-white text-black p-4 sm:p-8 min-h-screen">
+
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Top Action Control Bar -->
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-black pb-4">
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl font-black tracking-tight text-black">관계성 틀 에디터</h1>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+        <!-- Add Card Button for 2-Person -->
+        <button id="btnAdd2pCard" onclick="add2PersonCard()" class="px-3 py-1.5 bg-white text-black font-bold border border-black hover:bg-black hover:text-neon transition-all text-xs">
+          + 2인 카드 추가
+        </button>
+        <!-- Add Card Button for 3-Person -->
+        <button id="btnAdd3pCard" onclick="add3PersonCard()" class="hidden px-3 py-1.5 bg-white text-black font-bold border border-black hover:bg-black hover:text-neon transition-all text-xs">
+          + 3인 카드 추가
+        </button>
+
+        <!-- Save JSON File -->
+        <button onclick="exportJSONData()" class="px-3 py-1.5 bg-white text-black font-bold border border-black hover:bg-black hover:text-neon transition-all text-xs">
+          💾 데이터 저장
+        </button>
+
+        <!-- Load JSON File -->
+        <button onclick="document.getElementById('importFileInput').click()" class="px-3 py-1.5 bg-white text-black font-bold border border-black hover:bg-black hover:text-neon transition-all text-xs">
+          📂 불러오기
+        </button>
+        <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="importJSONData(event)">
+
+        <!-- Reset Data -->
+        <button onclick="resetToDefaultData()" class="px-2.5 py-1.5 bg-white text-neutral-500 font-bold border border-neutral-300 hover:border-black hover:text-red-600 transition-all text-xs" title="초기 데이터로 복원">
+          🔄 초기화
+        </button>
+
+        <!-- HTML Code Copy Button -->
+        <button onclick="copyHTMLSnippet()" class="px-4 py-1.5 bg-neon text-black font-bold border border-black hover:bg-black hover:text-white transition-all text-xs">
+          <span id="copyBtnText">HTML 복사</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Instructions Notice -->
+    <div class="p-3 bg-neutral-50 border border-black text-xs space-y-1">
+      <div class="font-bold text-black flex items-center justify-between">
+        <span>💡 사용 설명서</span>
+        <span id="saveStatusText" class="text-[11px] font-normal text-neutral-500">자동 저장됨 (Local)</span>
+      </div>
+      <div class="text-neutral-600 flex flex-wrap gap-x-4 gap-y-1">
+        <span>• <b>글자 수정:</b> 텍스트를 클릭해서 바로 편집할 수 있습니다. (편집 내용은 자동으로 내 브라우저에 저장됩니다)</span>
+        <span>• <b>데이터 백업/불러오기:</b> `💾 데이터 저장`으로 `.json` 백업 파일을 저장하거나 `📂 불러오기`로 복원할 수 있습니다.</span>
+      </div>
+    </div>
+
+
+    <!-- ==================== TISTORY EMBEDDABLE CONTAINER START ==================== -->
+    <div id="tistory-relationship-container" class="bg-white text-black relative my-2">
+
+      <!-- Navigation Tabs -->
+      <div class="flex items-center gap-2 text-xs mb-6">
+        <button type="button" onclick="switchRelTab(this, '2person')" data-tab="2person" class="tab-btn-2p px-5 py-2 border border-black bg-black text-neon font-bold transition-all cursor-pointer">
+          2인 관계성
+        </button>
+        <button type="button" onclick="switchRelTab(this, '3person')" data-tab="3person" class="tab-btn-3p px-5 py-2 border border-black bg-white text-black font-bold hover:bg-neutral-100 transition-all cursor-pointer">
+          3인 관계성
+        </button>
+      </div>
+
+
+      <!-- ==================== TAB 1: 2인 관계성 ==================== -->
+      <div id="rel-section-2person" class="rel-section-block space-y-10">
+        <div id="container-2person" class="space-y-10">
+          <!-- Dynamically Rendered 2-Person Cards -->
+        </div>
+      </div>
+
+
+      <!-- ==================== TAB 2: 3인 관계성 ==================== -->
+      <div id="rel-section-3person" class="rel-section-block space-y-10 hidden">
+        <div id="container-3person" class="space-y-10">
+          <!-- Dynamically Rendered 3-Person Cards -->
+        </div>
+      </div>
+
+    </div>
+    <!-- ==================== TISTORY EMBEDDABLE CONTAINER END ==================== -->
+
+  </div>
+
+  <script>
+    // Initial Default Data Model
+    const defaultData = {
+      p2Cards: [
+        {
+          charA: {
+            name: "윤서아",
+            sub: "YOON SEO-AH",
+            age: "24",
+            role: "전략가",
+            keyword: "통제 · 이성",
+            quote: '"계획에서 벗어난 변수는 당신 하나로 충분해요."'
+          },
+          relation: {
+            kwA: "통제 및 경계",
+            kwB: "자극 및 집착"
+          },
+          charB: {
+            name: "강도현",
+            sub: "KANG DO-HYUN",
+            age: "26",
+            role: "해결사",
+            keyword: "돌발 · 헌신",
+            quote: '"너처럼 똑똑한 애가 왜 날 못 버리는지 알아?"'
+          },
+          narrativeTitle: "관계성 서사",
+          narrativeDesc: "서로의 약점을 누구보다 정확히 알고 있으면서도, 절체절명의 순간에는 서로의 목숨을 구하는 지독한 공생 관계. 윤서아의 정교한 계산을 유일하게 흐트러뜨리는 인물이 강도현이다."
+        },
+        {
+          charA: {
+            name: "강도현",
+            sub: "KANG DO-HYUN",
+            age: "26",
+            role: "해결사",
+            keyword: "돌발 · 헌신",
+            quote: '"괜히 끼어들지 마라. 다친다."'
+          },
+          relation: {
+            kwA: "비즈니스 파트너",
+            kwB: "신뢰 및 중재"
+          },
+          charB: {
+            name: "한지유",
+            sub: "HAN JI-YOO",
+            age: "25",
+            role: "조율자",
+            keyword: "중재 · 비밀",
+            quote: '"내가 안 챙기면 또 사달이 나지."'
+          },
+          narrativeTitle: "관계성 서사",
+          narrativeDesc: "티격태격하면서도 현장에서 서로의 사각지대를 가장 완벽히 커버해주는 사업적 동료."
+        },
+        {
+          charA: {
+            name: "한지유",
+            sub: "HAN JI-YOO",
+            age: "25",
+            role: "조율자",
+            keyword: "중재 · 비밀",
+            quote: '"지칠 땐 언제든 말해."'
+          },
+          relation: {
+            kwA: "안식처",
+            kwB: "유일한 의지"
+          },
+          charB: {
+            name: "윤서아",
+            sub: "YOON SEO-AH",
+            age: "24",
+            role: "전략가",
+            keyword: "통제 · 이성",
+            quote: '"고마워, 너한테만 말할 수 있어서."'
+          },
+          narrativeTitle: "관계성 서사",
+          narrativeDesc: "냉철한 서아가 유일하게 차가운 가면을 벗고 무장해제하는 정신적 정서 연결 고리."
+        }
+      ],
+      p3Cards: [
+        {
+          char1: {
+            name: "윤서아",
+            sub: "YOON SEO-AH",
+            pos: "지휘관",
+            keyword: "통제 · 이성",
+            quote: '"둘 다 제발 명령대로 움직여."'
+          },
+          char2: {
+            name: "강도현",
+            sub: "KANG DO-HYUN",
+            pos: "선봉장",
+            keyword: "돌발 · 헌신",
+            quote: '"판은 서아가 짜고, 피는 내가 묻히지."'
+          },
+          char3: {
+            name: "한지유",
+            sub: "HAN JI-YOO",
+            pos: "조율자",
+            keyword: "중재 · 비밀",
+            quote: '"싸움은 그만하고, 탈출구나 찾자고."'
+          },
+          narrativeTitle: "3인 상호 관계성",
+          pair1: {
+            title: "윤서아 ⇄ 강도현",
+            desc: "서아의 철저한 기획과 도현의 위험한 돌발 행동이 부딪히지만, 목숨을 맡길 수 있는 유일한 공생 관계."
+          },
+          pair2: {
+            title: "강도현 ⇄ 한지유",
+            desc: "티격태격하지만 현장에서 서로의 사각지대를 가장 잘 메워주는 유쾌하고 차가운 사업적 파트너."
+          },
+          pair3: {
+            title: "한지유 ⇄ 윤서아",
+            desc: "서아가 유일하게 마음을 놓고 사적인 고민을 털어놓을 수 있는 정신적 안식처이자 중재자."
+          }
+        }
+      ]
+    };
+
+    let appData = JSON.parse(JSON.stringify(defaultData));
+    let activeTab = '2person';
+
+    // Initialize application on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      loadFromLocalStorage();
+      renderAllCards();
+    });
+
+    // Save to LocalStorage with visual status text
+    function saveToLocalStorage() {
+      try {
+        localStorage.setItem('tistory_rel_card_data', JSON.stringify(appData));
+        const statusEl = document.getElementById('saveStatusText');
+        if (statusEl) {
+          statusEl.innerText = '자동 저장 완료 (' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ')';
+        }
+      } catch (e) {
+        console.error('LocalStorage save failed', e);
+      }
+    }
+
+    // Load from LocalStorage
+    function loadFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('tistory_rel_card_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && Array.isArray(parsed.p2Cards) && Array.isArray(parsed.p3Cards)) {
+            appData = parsed;
+          }
+        }
+      } catch (e) {
+        console.error('LocalStorage load failed', e);
+      }
+    }
+
+    // Render 2P and 3P cards
+    function renderAllCards() {
+      render2PersonCards();
+      render3PersonCards();
+    }
+
+    function render2PersonCards() {
+      const container = document.getElementById('container-2person');
+      if (!container) return;
+
+      container.innerHTML = '';
+      appData.p2Cards.forEach((card, index) => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'pair-card-2p space-y-4 pt-6 border-t border-black first:border-t-0 first:pt-0 relative';
+        cardDiv.innerHTML = `
+          <div class="flex justify-end hide-on-export">
+            <button onclick="remove2PersonCard(${index})" class="text-[11px] px-2 py-0.5 bg-white text-neutral-500 hover:text-red-600 border border-neutral-300 hover:border-black font-bold transition-all">
+              ✕ 카드 삭제
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+            
+            <!-- Character A -->
+            <div class="md:col-span-5 border-cyber p-4 flex flex-col justify-between bg-white">
+              <div>
+                <div class="flex items-baseline justify-between mb-3 border-b border-black pb-2">
+                  <h4 class="text-lg font-bold text-black" contenteditable="true" onblur="update2PData(${index}, 'charA.name', this.innerText)">${escapeHTML(card.charA.name)}</h4>
+                  <span class="text-[10px] text-neutral-500 font-mono tracking-widest uppercase" contenteditable="true" onblur="update2PData(${index}, 'charA.sub', this.innerText)">${escapeHTML(card.charA.sub)}</span>
+                </div>
+
+                <div class="text-xs space-y-2 mb-4">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">AGE</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update2PData(${index}, 'charA.age', this.innerText)">${escapeHTML(card.charA.age)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">ROLE</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update2PData(${index}, 'charA.role', this.innerText)">${escapeHTML(card.charA.role)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">KEYWORD</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update2PData(${index}, 'charA.keyword', this.innerText)">${escapeHTML(card.charA.keyword)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t border-black pt-2 mt-2">
+                <p class="text-xs leading-relaxed text-black" contenteditable="true" onblur="update2PData(${index}, 'charA.quote', this.innerText)">${escapeHTML(card.charA.quote)}</p>
+              </div>
+            </div>
+
+            <!-- Central Dynamic Relation Box -->
+            <div class="md:col-span-2 flex flex-col items-center justify-center">
+              <div class="w-full border-cyber p-3 text-center bg-white space-y-2">
+                <div class="space-y-2 text-xs">
+                  <div class="bg-neutral-100 p-2 border border-black">
+                    <div class="font-bold text-black" contenteditable="true" onblur="update2PData(${index}, 'relation.kwA', this.innerText)">${escapeHTML(card.relation.kwA)}</div>
+                  </div>
+
+                  <div class="text-sm font-bold text-black my-1">⇄</div>
+
+                  <div class="bg-neon/40 p-2 border border-black">
+                    <div class="font-bold text-black" contenteditable="true" onblur="update2PData(${index}, 'relation.kwB', this.innerText)">${escapeHTML(card.relation.kwB)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Character B -->
+            <div class="md:col-span-5 border-cyber p-4 flex flex-col justify-between bg-white">
+              <div>
+                <div class="flex items-baseline justify-between mb-3 border-b border-black pb-2">
+                  <h4 class="text-lg font-bold text-black" contenteditable="true" onblur="update2PData(${index}, 'charB.name', this.innerText)">${escapeHTML(card.charB.name)}</h4>
+                  <span class="text-[10px] text-neutral-500 font-mono tracking-widest uppercase" contenteditable="true" onblur="update2PData(${index}, 'charB.sub', this.innerText)">${escapeHTML(card.charB.sub)}</span>
+                </div>
+
+                <div class="text-xs space-y-2 mb-4">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">AGE</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update2PData(${index}, 'charB.age', this.innerText)">${escapeHTML(card.charB.age)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">ROLE</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update2PData(${index}, 'charB.role', this.innerText)">${escapeHTML(card.charB.role)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">KEYWORD</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update2PData(${index}, 'charB.keyword', this.innerText)">${escapeHTML(card.charB.keyword)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t border-black pt-2 mt-2">
+                <p class="text-xs leading-relaxed text-black" contenteditable="true" onblur="update2PData(${index}, 'charB.quote', this.innerText)">${escapeHTML(card.charB.quote)}</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Narrative Box -->
+          <div class="border-cyber p-4 text-xs bg-white">
+            <div class="font-bold text-black text-xs mb-2 border-b border-black pb-1" contenteditable="true" onblur="update2PData(${index}, 'narrativeTitle', this.innerText)">${escapeHTML(card.narrativeTitle)}</div>
+            <p class="text-xs leading-relaxed text-neutral-800" contenteditable="true" onblur="update2PData(${index}, 'narrativeDesc', this.innerText)">${escapeHTML(card.narrativeDesc)}</p>
+          </div>
+        `;
+        container.appendChild(cardDiv);
+      });
+    }
+
+    function render3PersonCards() {
+      const container = document.getElementById('container-3person');
+      if (!container) return;
+
+      container.innerHTML = '';
+      appData.p3Cards.forEach((card, index) => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'trio-card-3p space-y-4 pt-6 border-t border-black first:border-t-0 first:pt-0 relative';
+        cardDiv.innerHTML = `
+          <div class="flex justify-end hide-on-export">
+            <button onclick="remove3PersonCard(${index})" class="text-[11px] px-2 py-0.5 bg-white text-neutral-500 hover:text-red-600 border border-neutral-300 hover:border-black font-bold transition-all">
+              ✕ 카드 삭제
+            </button>
+          </div>
+
+          <!-- 3 Character Columns Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- Char 1 -->
+            <div class="border-cyber p-4 flex flex-col justify-between bg-white">
+              <div>
+                <div class="flex items-baseline justify-between border-b border-black pb-2 mb-3">
+                  <h4 class="text-lg font-bold text-black" contenteditable="true" onblur="update3PData(${index}, 'char1.name', this.innerText)">${escapeHTML(card.char1.name)}</h4>
+                  <span class="text-[10px] text-neutral-500 font-mono tracking-widest uppercase" contenteditable="true" onblur="update3PData(${index}, 'char1.sub', this.innerText)">${escapeHTML(card.char1.sub)}</span>
+                </div>
+                
+                <div class="text-xs space-y-2 mb-3">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">POSITION</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update3PData(${index}, 'char1.pos', this.innerText)">${escapeHTML(card.char1.pos)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">KEYWORD</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update3PData(${index}, 'char1.keyword', this.innerText)">${escapeHTML(card.char1.keyword)}</span>
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-black pt-2 border-t border-black" contenteditable="true" onblur="update3PData(${index}, 'char1.quote', this.innerText)">${escapeHTML(card.char1.quote)}</p>
+            </div>
+
+            <!-- Char 2 -->
+            <div class="border-cyber p-4 flex flex-col justify-between bg-white">
+              <div>
+                <div class="flex items-baseline justify-between border-b border-black pb-2 mb-3">
+                  <h4 class="text-lg font-bold text-black" contenteditable="true" onblur="update3PData(${index}, 'char2.name', this.innerText)">${escapeHTML(card.char2.name)}</h4>
+                  <span class="text-[10px] text-neutral-500 font-mono tracking-widest uppercase" contenteditable="true" onblur="update3PData(${index}, 'char2.sub', this.innerText)">${escapeHTML(card.char2.sub)}</span>
+                </div>
+
+                <div class="text-xs space-y-2 mb-3">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">POSITION</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update3PData(${index}, 'char2.pos', this.innerText)">${escapeHTML(card.char2.pos)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">KEYWORD</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update3PData(${index}, 'char2.keyword', this.innerText)">${escapeHTML(card.char2.keyword)}</span>
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-black pt-2 border-t border-black" contenteditable="true" onblur="update3PData(${index}, 'char2.quote', this.innerText)">${escapeHTML(card.char2.quote)}</p>
+            </div>
+
+            <!-- Char 3 -->
+            <div class="border-cyber p-4 flex flex-col justify-between bg-white">
+              <div>
+                <div class="flex items-baseline justify-between border-b border-black pb-2 mb-3">
+                  <h4 class="text-lg font-bold text-black" contenteditable="true" onblur="update3PData(${index}, 'char3.name', this.innerText)">${escapeHTML(card.char3.name)}</h4>
+                  <span class="text-[10px] text-neutral-500 font-mono tracking-widest uppercase" contenteditable="true" onblur="update3PData(${index}, 'char3.sub', this.innerText)">${escapeHTML(card.char3.sub)}</span>
+                </div>
+
+                <div class="text-xs space-y-2 mb-3">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">POSITION</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update3PData(${index}, 'char3.pos', this.innerText)">${escapeHTML(card.char3.pos)}</span>
+                  </div>
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-neutral-600">KEYWORD</span>
+                    <span class="dot-leader"></span>
+                    <span class="font-bold" contenteditable="true" onblur="update3PData(${index}, 'char3.keyword', this.innerText)">${escapeHTML(card.char3.keyword)}</span>
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-black pt-2 border-t border-black" contenteditable="true" onblur="update3PData(${index}, 'char3.quote', this.innerText)">${escapeHTML(card.char3.quote)}</p>
+            </div>
+
+          </div>
+
+          <!-- 3-Person Relationship Map -->
+          <div class="border-cyber p-4 bg-white space-y-3">
+            <div class="font-bold text-xs text-black border-b border-black pb-1" contenteditable="true" onblur="update3PData(${index}, 'narrativeTitle', this.innerText)">
+              ${escapeHTML(card.narrativeTitle)}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div class="border border-black p-3 bg-white space-y-1">
+                <div class="font-bold text-black border-b border-neutral-200 pb-1 mb-1" contenteditable="true" onblur="update3PData(${index}, 'pair1.title', this.innerText)">
+                  ${escapeHTML(card.pair1.title)}
+                </div>
+                <p class="text-neutral-700 leading-relaxed text-[11px]" contenteditable="true" onblur="update3PData(${index}, 'pair1.desc', this.innerText)">
+                  ${escapeHTML(card.pair1.desc)}
+                </p>
+              </div>
+
+              <div class="border border-black p-3 bg-white space-y-1">
+                <div class="font-bold text-black border-b border-neutral-200 pb-1 mb-1" contenteditable="true" onblur="update3PData(${index}, 'pair2.title', this.innerText)">
+                  ${escapeHTML(card.pair2.title)}
+                </div>
+                <p class="text-neutral-700 leading-relaxed text-[11px]" contenteditable="true" onblur="update3PData(${index}, 'pair2.desc', this.innerText)">
+                  ${escapeHTML(card.pair2.desc)}
+                </p>
+              </div>
+
+              <div class="border border-black p-3 bg-white space-y-1">
+                <div class="font-bold text-black border-b border-neutral-200 pb-1 mb-1" contenteditable="true" onblur="update3PData(${index}, 'pair3.title', this.innerText)">
+                  ${escapeHTML(card.pair3.title)}
+                </div>
+                <p class="text-neutral-700 leading-relaxed text-[11px]" contenteditable="true" onblur="update3PData(${index}, 'pair3.desc', this.innerText)">
+                  ${escapeHTML(card.pair3.desc)}
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(cardDiv);
+      });
+    }
+
+    // Helper to update deeply nested JSON properties
+    function update2PData(index, path, value) {
+      setDeepProperty(appData.p2Cards[index], path, value.trim());
+      saveToLocalStorage();
+    }
+
+    function update3PData(index, path, value) {
+      setDeepProperty(appData.p3Cards[index], path, value.trim());
+      saveToLocalStorage();
+    }
+
+    function setDeepProperty(obj, path, val) {
+      const parts = path.split('.');
+      let curr = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        curr = curr[parts[i]];
+      }
+      curr[parts[parts.length - 1]] = val;
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Tab switcher function
+    function switchRelTab(btn, targetType) {
+      activeTab = targetType;
+      var root = btn.closest('#tistory-relationship-container');
+      if (!root) return;
+
+      var sec2 = root.querySelector('#rel-section-2person');
+      var sec3 = root.querySelector('#rel-section-3person');
+      var tab2 = root.querySelector('.tab-btn-2p');
+      var tab3 = root.querySelector('.tab-btn-3p');
+
+      const btnAdd2p = document.getElementById('btnAdd2pCard');
+      const btnAdd3p = document.getElementById('btnAdd3pCard');
+
+      if (targetType === '2person') {
+        if (sec2) sec2.classList.remove('hidden');
+        if (sec3) sec3.classList.add('hidden');
+        if (tab2) tab2.className = "tab-btn-2p px-5 py-2 border border-black bg-black text-neon font-bold transition-all cursor-pointer";
+        if (tab3) tab3.className = "tab-btn-3p px-5 py-2 border border-black bg-white text-black font-bold hover:bg-neutral-100 transition-all cursor-pointer";
+
+        if (btnAdd2p) btnAdd2p.classList.remove('hidden');
+        if (btnAdd3p) btnAdd3p.classList.add('hidden');
+      } else {
+        if (sec2) sec2.classList.add('hidden');
+        if (sec3) sec3.classList.remove('hidden');
+        if (tab3) tab3.className = "tab-btn-3p px-5 py-2 border border-black bg-black text-neon font-bold transition-all cursor-pointer";
+        if (tab2) tab2.className = "tab-btn-2p px-5 py-2 border border-black bg-white text-black font-bold hover:bg-neutral-100 transition-all cursor-pointer";
+
+        if (btnAdd2p) btnAdd2p.classList.add('hidden');
+        if (btnAdd3p) btnAdd3p.classList.remove('hidden');
+      }
+    }
+
+    // Dynamic 2P Card Add / Remove
+    function add2PersonCard() {
+      appData.p2Cards.push({
+        charA: { name: "캐릭터 A", sub: "CHARACTER A", age: "--", role: "역할", keyword: "키워드", quote: '"대사를 입력하세요."' },
+        relation: { kwA: "키워드 A", kwB: "키워드 B" },
+        charB: { name: "캐릭터 B", sub: "CHARACTER B", age: "--", role: "역할", keyword: "키워드", quote: '"대사를 입력하세요."' },
+        narrativeTitle: "관계성 서사",
+        narrativeDesc: "두 캐릭터 간의 서사 내용을 자유롭게 작성하세요."
+      });
+      render2PersonCards();
+      saveToLocalStorage();
+    }
+
+    function remove2PersonCard(index) {
+      if (appData.p2Cards.length <= 1) {
+        alert('최소 1개의 카드는 유지되어야 합니다.');
+        return;
+      }
+      appData.p2Cards.splice(index, 1);
+      render2PersonCards();
+      saveToLocalStorage();
+    }
+
+    // Dynamic 3P Card Add / Remove
+    function add3PersonCard() {
+      appData.p3Cards.push({
+        char1: { name: "캐릭터 1", sub: "CHAR 01", pos: "포지션", keyword: "키워드", quote: '"한 줄 대사를 입력하세요."' },
+        char2: { name: "캐릭터 2", sub: "CHAR 02", pos: "포지션", keyword: "키워드", quote: '"한 줄 대사를 입력하세요."' },
+        char3: { name: "캐릭터 3", sub: "CHAR 03", pos: "포지션", keyword: "키워드", quote: '"한 줄 대사를 입력하세요."' },
+        narrativeTitle: "3인 상호 관계성",
+        pair1: { title: "캐릭터1 ⇄ 캐릭터2", desc: "상호 관계 설명을 작성하세요." },
+        pair2: { title: "캐릭터2 ⇄ 캐릭터3", desc: "상호 관계 설명을 작성하세요." },
+        pair3: { title: "캐릭터3 ⇄ 캐릭터1", desc: "상호 관계 설명을 작성하세요." }
+      });
+      render3PersonCards();
+      saveToLocalStorage();
+    }
+
+    function remove3PersonCard(index) {
+      if (appData.p3Cards.length <= 1) {
+        alert('최소 1개의 카드는 유지되어야 합니다.');
+        return;
+      }
+      appData.p3Cards.splice(index, 1);
+      render3PersonCards();
+      saveToLocalStorage();
+    }
+
+    // Export JSON Data file
+    function exportJSONData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", "relationship_data.json");
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // Import JSON Data file
+    function importJSONData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && Array.isArray(parsed.p2Cards) && Array.isArray(parsed.p3Cards)) {
+            appData = parsed;
+            renderAllCards();
+            saveToLocalStorage();
+            alert('성공적으로 불러왔습니다!');
+          } else {
+            alert('유효하지 않은 데이터 형식입니다.');
+          }
+        } catch (err) {
+          alert('JSON 파일을 읽는 중 오류가 발생했습니다.');
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    // Reset Data
+    function resetToDefaultData() {
+      if (confirm('모든 내용이 초기 상태로 되돌아갑니다. 진행하시겠습니까?')) {
+        appData = JSON.parse(JSON.stringify(defaultData));
+        renderAllCards();
+        saveToLocalStorage();
+      }
+    }
+
+    // HTML Snippet Export for Tistory
+    function copyHTMLSnippet() {
+      const originalContainer = document.getElementById('tistory-relationship-container');
+      const clone = originalContainer.cloneNode(true);
+
+      // Clean interactive elements for final blog view
+      clone.querySelectorAll('[contenteditable="true"]').forEach(el => el.removeAttribute('contenteditable'));
+      clone.querySelectorAll('.hide-on-export').forEach(el => el.remove());
+
+      const fullCode = `<!-- 관계성 틀 시작 -->
+<script src="https://cdn.tailwindcss.com"><\/script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: { neon: '#ccff00' }
+      }
+    }
+  }
+<\/script>
+<style>
+  #tistory-relationship-container, #tistory-relationship-container * {
+    font-family: inherit !important;
+    box-shadow: none !important;
+  }
+  .border-cyber { border: 1px solid #111111; box-shadow: none !important; }
+  .dot-leader { border-bottom: 2px dotted #cccccc; flex-grow: 1; margin: 0 8px 4px 8px; }
+</style>
+
+${clone.outerHTML}
+
+<script>
+  function switchRelTab(btn, targetType) {
+    var root = btn.closest('#tistory-relationship-container');
+    if (!root) return;
+
+    var sec2 = root.querySelector('#rel-section-2person');
+    var sec3 = root.querySelector('#rel-section-3person');
+    var tab2 = root.querySelector('.tab-btn-2p');
+    var tab3 = root.querySelector('.tab-btn-3p');
+
+    if (targetType === '2person') {
+      if (sec2) sec2.classList.remove('hidden');
+      if (sec3) sec3.classList.add('hidden');
+      if (tab2) tab2.className = "tab-btn-2p px-5 py-2 border border-black bg-black text-neon font-bold transition-all cursor-pointer";
+      if (tab3) tab3.className = "tab-btn-3p px-5 py-2 border border-black bg-white text-black font-bold hover:bg-neutral-100 transition-all cursor-pointer";
+    } else {
+      if (sec2) sec2.classList.add('hidden');
+      if (sec3) sec3.classList.remove('hidden');
+      if (tab3) tab3.className = "tab-btn-3p px-5 py-2 border border-black bg-black text-neon font-bold transition-all cursor-pointer";
+      if (tab2) tab2.className = "tab-btn-2p px-5 py-2 border border-black bg-white text-black font-bold hover:bg-neutral-100 transition-all cursor-pointer";
+    }
+  }
+<\/script>
+<!-- 관계성 틀 끝 -->`;
+
+      const tempTextArea = document.createElement('textarea');
+      tempTextArea.value = fullCode;
+      document.body.appendChild(tempTextArea);
+      tempTextArea.select();
+
+      try {
+        document.execCommand('copy');
+        const btnText = document.getElementById('copyBtnText');
+        btnText.innerText = '복사 완료!';
+        setTimeout(() => {
+          btnText.innerText = 'HTML 복사';
+        }, 2000);
+      } catch (err) {
+        alert('복사에 실패했습니다.');
+      }
+
+      document.body.removeChild(tempTextArea);
+    }
+  </script>
+</body>
+</html>
